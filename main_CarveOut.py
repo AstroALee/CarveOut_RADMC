@@ -1,6 +1,16 @@
-'''
-    asldkjfadsf
-'''
+"""
+   main_CarveOut.py
+
+   Purpose:
+        Driving function for RadMC carve routines. Call this file when you want
+        to run the code. Should not ever need to edit this file.
+
+   Author:
+        Aaron T. Lee, aaron.t.lee@utexas.edu
+        Spring 2018
+
+   Written/Tested with Python 3.6.4, YT 3.4.1
+"""
 
 import yt
 from globals_CarveOut import *

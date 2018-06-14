@@ -1,9 +1,13 @@
 """
-   Carve out routine writer.
-   Should not need to edit this file ever.
+   carver_CarveOut.py
 
-   Aaron T. Lee, aaron.t.lee@utexas.edu
-   Spring 2018
+   Purpose:
+        Carving class that pulls the relevant layers needed to create a RadMC amr
+        and number density files. Should not need to edit this file ever.
+
+   Author: 
+        Aaron T. Lee, aaron.t.lee@utexas.edu
+        Spring 2018
 
    Written/Tested with Python 3.6.4, YT 3.4.1
 """

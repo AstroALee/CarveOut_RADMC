@@ -1,10 +1,16 @@
-'''
-    General functions and constants for the RADMC3d carve out routinesself.
+"""
+   globals_CarveOut.py
 
+   Purpose:
+        Constants and simple functions for use in the RadMC carving routines.
+        Should not need to edit this file ever.
 
-    Aaron T. Lee, aaron.t.lee@utexas.edu
-    Written/Tested with Python 3.6.4, YT 3.4.1
-'''
+   Author:
+        Aaron T. Lee, aaron.t.lee@utexas.edu
+        Spring 2018
+
+   Written/Tested with Python 3.6.4, YT 3.4.1
+"""
 
 # Relevant Python modules
 import numpy as np

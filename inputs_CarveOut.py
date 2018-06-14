@@ -1,13 +1,16 @@
-'''
-   Carve out routine inputs. This is the only file you should have to edit.
-   Follow the comments to instructions on what to set. Then run main_CarveOut.py
-   to produce the desired outputs.
+"""
+   inputs_CarveOut.py
 
-   Aaron T. Lee, aaron.t.lee@utexas.edu
-   Spring 2018
+   Purpose:
+        Input file for RadMC carving routines. This is the only file you should 
+        edit. Follow the comments below to see what each variable represents.
 
-   Written/Tested with Python 3.6.4, YT 3.4.1, RADMC3D
-'''
+   Author:
+        Aaron T. Lee, aaron.t.lee@utexas.edu
+        Spring 2018
+
+   Written/Tested with Python 3.6.4, YT 3.4.1
+"""
 
 # How are we setting up the domain?
 #    0 = will read the left-side locations and use the number of cells on base
