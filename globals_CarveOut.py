@@ -42,6 +42,8 @@ class UnitConv:
 
 # Chatty Cathy
 class Messages:
+    def Print(s):
+        print(s)
     # welcome
     def Welcome():
         print("\nWelcome to the carve out routine.")

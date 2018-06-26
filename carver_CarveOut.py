@@ -5,7 +5,7 @@
         Carving class that pulls the relevant layers needed to create a RadMC amr
         and number density files. Should not need to edit this file ever.
 
-   Author: 
+   Author:
         Aaron T. Lee, aaron.t.lee@utexas.edu
         Spring 2018
 
@@ -67,19 +67,22 @@ class CarvingWriter:
     '''
         Parameters:
         a_ds = pointer to Orion2 data read in from YT
-        a_box[Left,Right] = triple arrays for bottom-left and upper-right corners
+        a_box[Left,Right] = triple arrays for bottom-left and upper-right corners of carve region
+        a_Domain[Left,Right] = triple arrays for bottom-left and upper-right of entire domain (needed for periodic sides)
         a_boxDim = triple array giving number of cells in each dimension for layer
         a_max_level = max AMR level we will use
         a_is_periodic = 0,1 whether we are allowing for periodic domains
 
     '''
-    def __init__(self, a_ds, a_boxLeft, a_boxRight, a_boxDim, a_max_level, a_is_periodic):
+    def __init__(self, a_ds, a_boxLeft, a_boxRight, a_DomainLeft, a_DomainRight, a_boxDim, a_max_level, a_is_periodic):
         self.max_level = a_max_level
         self.cell_count = 0
         self.layers = []
         self.domain_dimensions = a_boxDim #ds.domain_dimensions
         self.domain_left_edge  = yt.YTArray(a_boxLeft,'cm') # assumes you passed in CGS #ds.domain_left_edge
         self.domain_right_edge = yt.YTArray(a_boxRight,'cm') # assumes you passed in CGS #ds.domain_right_edge
+        self.fulldomain_left = a_DomainLeft # pulled from yt, already a YT array
+        self.fulldomain_right = a_DomainRight # pulled from yt, already a YT array
         self.grid_filename = inputs.out_afname #'amr_grid.inp'
         self.ds = a_ds
         self.is_periodic = a_is_periodic

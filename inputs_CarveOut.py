@@ -2,7 +2,7 @@
    inputs_CarveOut.py
 
    Purpose:
-        Input file for RadMC carving routines. This is the only file you should 
+        Input file for RadMC carving routines. This is the only file you should
         edit. Follow the comments below to see what each variable represents.
 
    Author:
@@ -24,18 +24,14 @@ is_periodic = 1
 
 # Number of cells on base level
 # Only used if setup_type = 0
-Ncells = [64,64,64]
+Ncells = [8,8,8]
 
 # Units of the below box values ('pc','cm','AU','ly' accepted)
 # Follows Orion2 convenions where 0,0,0 is the center of the box.
 # Depending on the setup_type value, the 'right' values may be overwritten.
 box_units = 'pc'
-box_xL = 2.7
-box_xR = 1.25
-box_yL = -0.7
-box_yR = 1.25
-box_zL = 0.3
-box_zR = 1.25
+box_L = [0.5,-0.5,0]
+box_R = [1.5,0,0.5]
 
 # AMR levels included (0 = unigrid)
 max_level = 0
