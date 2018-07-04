@@ -20,7 +20,7 @@
 setup_type = 0
 
 # Allow for periodic boundary conditions (setting to 1 overwrites setup_type to 0)?
-is_periodic = 1
+is_periodic = 0
 
 # Number of cells on base level
 # Only used if setup_type = 0
@@ -30,8 +30,8 @@ Ncells = [384,384,384]
 # Follows Orion2 convenions where 0,0,0 is the center of the box.
 # Depending on the setup_type value, the 'right' values may be overwritten.
 box_units = 'pc'
-box_L = [1.5,1.5,1.5]
-#box_L = [-0.5,-0.5,-0.5]
+#box_L = [1.5,1.5,1.5]
+box_L = [-0.5,-0.5,-0.5]
 box_R = [0.75,0,0.5]
 
 # AMR levels included (0 = unigrid)
@@ -41,6 +41,10 @@ max_level = 2
 x_XYZ   = 1.0e-4 # mass fraction of species XYZ
 aw_XYZ  = 1.4    # atomic weight of species XYZ per H atom (1/mu = x / aw*mp)
 
+# adiabatic index and mean molecular weight for gas (used to calc temperature)
+gas_gamma = 1.0001
+gas_mmw   = 2.33
+
 # HDF5 and sink particle file names
 O2gas_fname = "data.0622.3d.hdf5"
 O2sink_fname = "data.0622.3d.sink"
@@ -49,6 +53,7 @@ O2sink_fname = "data.0622.3d.sink"
 out_afname = "amr_grid.inp"       # output file name for amr grid
 out_nfname = "numberdens_xyz.inp" # output file name for species
 out_vfname = "gas_velocity.inp"   # output file name for velocity
+out_tfname = "temperature.inp"    # output file name for temperature
 
 # Names for various fields in YT. Unlikely you need to change these,
 # unless Orion2 changes names of outputs.
@@ -56,3 +61,4 @@ density_field   = "density" # name of density field when accessing HDF5 file in 
 velocityX_field = "velocity_x" # name of x-velocity field in YT
 velocityY_field = "velocity_y" # name of y-velocity field in YT
 velocityZ_field = "velocity_z" # name of z-velocity field in YT
+ienergy_field  = "energy-density"

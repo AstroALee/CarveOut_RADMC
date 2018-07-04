@@ -18,6 +18,13 @@ import inputs_CarveOut as inputs
 from carver_CarveOut import CarvingWriter
 
 
+# Definition of the gas temperature. Uses info from inputs
+def _GasTemperature(field, data):
+    ethbyden = data[inputs.ienergy_field]/data[inputs.density_field]
+    gmmfac = (inputs.gas_gamma - 1.0)*yt.YTQuantity(inputs.gas_mmw*Csts.mp, 'g')/(yt.units.kb)
+    return (gmmfac*ethbyden)
+yt.add_field(("gas", "gas_temperature"), function=_GasTemperature, units="K")
+
 # Definition of the XYZ species field. Uses info from inputs
 def _NumberDensityXYZ(field, data):
     aw = yt.YTQuantity(inputs.aw_XYZ*Csts.mp, 'g')
@@ -205,9 +212,11 @@ writer.write_amr_grid()
 Messages.Print("Writing number density file")
 writer.write_line_file(("gas", "number_density_XYZ"), inputs.out_nfname)
 
-sys.exit(1)
+# Write the temperature file for species or dust (slow)
+Messages.Print("Writing temperature file")
+writer.write_line_file(("gas", "gas_temperature"), inputs.out_tfname)
 
-# Write the gas velocity file (slow)
+# Write the gas velocity file (slow x 3)
 Messages.Print("Writing velocity file")
 velocity_fields = [inputs.velocityX_field,inputs.velocityY_field,inputs.velocityZ_field]
 writer.write_line_file(velocity_fields, inputs.out_vfname)

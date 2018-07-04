@@ -32,7 +32,7 @@ class UnitConv:
     massunits = ['sol','g']
     timeunits = ['sec','yr','Myr']
     au2cm = 1.496e13 # AU to cm
-    pc2cm = 3.08567758128e18 # parsec to cm 
+    pc2cm = 3.08567758128e18 # parsec to cm
     ly2cm = 9.463e18 # light-year to cm
     sol2g = 1.989e33 # solar mass to g
     sol2ergs = 3.83e33 # solar luminosity to erg/s
