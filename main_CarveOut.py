@@ -28,6 +28,18 @@ yt.add_field(("gas", "number_density_XYZ"), function=_NumberDensityXYZ, units="c
 def BreakIntoPatches(domainPatches,fulldomain, mincellsize):
     fdL = fulldomain[0]
     fdR = fulldomain[1]
+
+    # As of right now, domainPatches is just the desired carved out region .
+    # if for some unknown reason you inputted a left edge that's beyond the
+    # actual domain's right edge, let's figure that out now
+    leftAdjustment = np.array(len(domainPatches[0][0])*[0])
+    for i in range(len(domainPatches[0][0])):
+        if(domainPatches[0][0][i] > fulldomain[1][i]):
+            leftAdjustment[i] = domainPatches[0][0][i] - fulldomain[1][i]
+        else:
+            leftAdjustment[i] = 0.
+    print(leftAdjustment)
+
     while(True):
         print("Beginning of while loop, current domainPatches:")
         print(domainPatches)
@@ -73,7 +85,7 @@ def BreakIntoPatches(domainPatches,fulldomain, mincellsize):
                 tempBoxR.extend(curBoxR)
                 if(tempBoxR[i] > fdR[i]): # the i-th dimension needs adjustment only
                     tempBoxR[i] = tempBoxR[i] - (fdR[i]-fdL[i])
-                    tempBoxL[i] = fdL[i]
+                    tempBoxL[i] = fdL[i] + leftAdjustment[i]
                     domainPatches.append( [tempBoxL,tempBoxR] )
         # clean up the patches in the case of duplicates or zero-volume boxes
         for box in domainPatches:
@@ -99,25 +111,12 @@ def BreakIntoPatches(domainPatches,fulldomain, mincellsize):
             domainPatches.pop(i) # the reverse makes the changing size of the list not affect things
         # end of while loop
     print("End of breaking up!")
+    print(domainPatches)
 
 
 # -=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=-
 #                           PROGRAM STARTS HERE
 # -=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=-
-
-# debug
-domainPatches = [ [ [0,0.5,0],[0.5,1.5,0.5] ] ]
-domainPatches = [ [ [0.5,-0.5,0],[1.5,0,0.5] ] ]
-domainPatches = [ [ [0.5,1],[1.5,1.5] ] ]
-
-print("Input before breaking up patches:")
-print(domainPatches)
-BreakIntoPatches( domainPatches,[[-1,-1],[1,1]], 0.0001 ) # domainPatches changes
-print("Result of breaking up domain patches:")
-print(domainPatches)
-print(len(domainPatches))
-assert False
-#end of debug
 
 # Greetings
 Messages.Welcome()
@@ -172,9 +171,13 @@ if(inputs.is_periodic):
         assert False, ("Carve out box is bigger than domain. Weird!")
 else:
     if(any(boxLeft < fullDomain_L.d)):
-        assert False, ("Left side of desired carve out outside actual domain. " + str(boxLeft) + " , " + str(fullDomain_L.d))
+        print((boxLeft-fullDomain_L.d)/fullDomain_L.d )
+        if(any( (boxLeft-fullDomain_L.d)/fullDomain_L.d > 0.001 ) ):
+            assert False, ("Left side of desired carve out outside actual domain. " + str(boxLeft) + " , " + str(fullDomain_L.d))
     if(any(boxRight > fullDomain_R.d)):
-        assert False, ("Right side of desired carve out outside actual domain. " + str(boxRight) + " , " + str(fullDomain_R.d))
+        print((boxRight-fullDomain_R.d)/fullDomain_R.d )
+        if(any( (boxRight-fullDomain_R.d)/fullDomain_R.d > 0.001 ) ):
+            assert False, ("Right side of desired carve out outside actual domain. " + str(boxRight) + " , " + str(fullDomain_R.d))
 
 
 Messages.Print("Carving between Left = " + str(boxLeft))
@@ -191,7 +194,8 @@ if(inputs.is_periodic):
 
 
 # Call the writer class constructor (super fast)
-writer = CarvingWriter(ds, boxLeft, boxRight, fullDomain_L, fullDomain_R, inputs.Ncells, inputs.max_level, inputs.is_periodic)
+writer = CarvingWriter(ds, boxLeft, boxRight, domainPatches, fullDomain_L, fullDomain_R, inputs.Ncells, inputs.max_level, inputs.is_periodic)
+
 
 # Write the amr grid file (fast)
 Messages.Print("Writing amr grid file")
@@ -200,6 +204,8 @@ writer.write_amr_grid()
 # Write the number density file for species or dust (slow)
 Messages.Print("Writing number density file")
 writer.write_line_file(("gas", "number_density_XYZ"), inputs.out_nfname)
+
+sys.exit(1)
 
 # Write the gas velocity file (slow)
 Messages.Print("Writing velocity file")

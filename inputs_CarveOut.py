@@ -24,17 +24,18 @@ is_periodic = 1
 
 # Number of cells on base level
 # Only used if setup_type = 0
-Ncells = [8,8,8]
+Ncells = [384,384,384]
 
 # Units of the below box values ('pc','cm','AU','ly' accepted)
 # Follows Orion2 convenions where 0,0,0 is the center of the box.
 # Depending on the setup_type value, the 'right' values may be overwritten.
 box_units = 'pc'
-box_L = [0.5,-0.5,0]
-box_R = [1.5,0,0.5]
+box_L = [1.5,1.5,1.5]
+#box_L = [-0.5,-0.5,-0.5]
+box_R = [0.75,0,0.5]
 
 # AMR levels included (0 = unigrid)
-max_level = 0
+max_level = 2
 
 # Information about the species XYZ you want to analyze (e.g., CO, NH3)
 x_XYZ   = 1.0e-4 # mass fraction of species XYZ
