@@ -1,5 +1,6 @@
 __pycache__
 *inp
 *hdf5
+*dat
 *sink
 carve_orig.py

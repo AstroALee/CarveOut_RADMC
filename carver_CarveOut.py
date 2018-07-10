@@ -119,10 +119,76 @@ class CarvingWriter:
             if grid.Level <= self.max_level:
                 self._add_grid_to_layers(grid)
 
+        # Statistics on layers included
         layerCounts = (self.max_level+1)*[0]
         for layer in self.layers:
             layerCounts[layer.level] = layerCounts[layer.level] + 1
         print("Number of layers for each level: " +  str(layerCounts))
+
+        # If we are carving out a region with AMR, it is possible that some AMR
+        # layers extend beyond the cutout region. If this is the case, the layer
+        # was truncated to fit in the desired box. However, this is gonna screw
+        # up the calculation of the cell size (length of layer / dimensions),
+        # since the LE and RE values are calculated by only the overlap regions.
+        # So here we loop over the layers and make sure they adhere to the right
+        # cell size
+        print("Original number of cells: " + str(self.cell_count))
+        for layer in self.layers[1:]: # 0th entry is base layer
+            # Find the parent of the current layer
+            parent_layer = None
+            for potential_parent in self.layers:
+                if potential_parent.id == layer.parent:
+                    parent_layer = potential_parent
+                    break # if this list is huge, this could save a few tick tocks
+            # base and current level cell size
+            base_cell = (self.domain_right_edge - self.domain_left_edge)/np.array(self.domain_dimensions)
+            layer_cell = base_cell/pow(2.0,layer.level) # by construction of this loop, layer.level >= 1
+            oldCellCount = np.product(layer.ActiveDimensions) # if we change the box, we have to change the total cell count
+            # if the layer was truncated, the layer's LE and RE will be exactly the same as the parent layer
+            if( np.all(layer.LeftEdge > parent_layer.LeftEdge) and np.all(layer.RightEdge < parent_layer.RightEdge) ):
+                # layer is fully inside and cell sizes will be correct
+                continue
+            else:
+                # something was violated in the above
+                if( np.any(layer.LeftEdge < parent_layer.LeftEdge)):
+                    print("LEFT: I don't think this should ever happen...")
+                    print(layer.LeftEdge , parent_layer.LeftEdge)
+                    for i in range(len(layer.LeftEdge)):
+                        layer.LeftEdge[i] = max(layer.LeftEdge[i] , parent_layer.LeftEdge[i] )
+                    # replaces only elements where layer.LE < parent_layer.LE
+                if( np.any(layer.RightEdge > parent_layer.RightEdge)):
+                    #print("RIGHT: I don't think this should ever happen...") # this actually will happen
+                    #print(layer.RightEdge , parent_layer.RightEdge)
+                    # replaces only elements where layer.LE < parent_layer.LE
+                    for i in range(len(layer.RightEdge)):
+                        #print(layer.LeftEdge[i] , layer.RightEdge[i])
+                        #print(parent_layer.LeftEdge[i] , parent_layer.RightEdge[i])
+                        layer.RightEdge[i] = min(layer.RightEdge[i] , parent_layer.RightEdge[i] )
+                        assert(layer.RightEdge[i] > layer.LeftEdge[i])
+                # however, truncation of the layer was done... cell counts and cell sizes likely wrong
+                minRE = np.array( len(layer.RightEdge)*[0] )
+                for i in range(len(layer.RightEdge)):
+                    minRE[i] = min(layer.RightEdge[i],parent_layer.RightEdge[i])
+                newDim = np.floor( (minRE - layer.LeftEdge.d)/layer_cell.d )
+                # if newDim is odd, we throw away another cell to make it even
+                for i in range(len(newDim)):
+                    if(newDim[i]%2): #   = 1 if odd
+                        newDim[i] = newDim[i] - 1
+                        assert(newDim[i]>1) # not sure if newDim = 0 would cause issues # also, this assert doesn't seem to work?
+                layer.RightEdge = layer.LeftEdge + ( newDim * layer_cell )
+                layer.ActiveDimensions = np.array([int(x) for x in newDim])
+                #print(layer.LeftEdge , parent_layer.LeftEdge, newDim)
+                for i in range(len(layer.ActiveDimensions)):
+                    assert(layer.ActiveDimensions[i]>0)
+                if(np.product(layer.ActiveDimensions)<0):
+                    print("ISSUE: " + str(layer.ActiveDimensions))
+                self.cell_count = self.cell_count - oldCellCount + np.product(layer.ActiveDimensions)
+                #print("Adjusted layer from " + str(oldCellCount) + " to " + str(np.product(layer.ActiveDimensions)))
+        print("New number of cells: " + str(self.cell_count))
+
+
+
+
         # Done with constructor
 
     def _get_parents(self, grid):
@@ -138,12 +204,13 @@ class CarvingWriter:
         for parent in parents: # if potential parents were found, this is done, else skipped
             LE, RE = parent.get_overlap_with(grid)
             N = (RE - LE) / grid.dds
-            N = np.array([int(n + 0.5) for n in N])
-            new_layer = RadMC3DLayer(grid.Level, parent.id,
+            if(np.all(N>1)): # truncation and roundoff sometimes results in razor-thin layers
+                N = np.array([int(n + 0.5) for n in N])
+                new_layer = RadMC3DLayer(grid.Level, parent.id,
                                      len(self.layers),
                                      LE, RE, N, self.allow_periodic, [])
-            self.layers.append(new_layer)
-            self.cell_count += np.product(N)
+                self.layers.append(new_layer)
+                self.cell_count += np.product(N)
 
     def write_amr_grid(self):
         '''
@@ -155,10 +222,17 @@ class CarvingWriter:
         LE = self.domain_left_edge # carved out region
         RE = self.domain_right_edge
 
+        #CellCount = np.product(self.domain_dimensions) # check
+
         # Taken from YT, fairly certain shouldn't be necessary, since O2 code_length is CGS
         # RadMC-3D wants the cell wall positions in cgs. Convert here:
         LE_cgs = LE.in_units('cm').d  # don't write the units, though
-        RE_cgs = RE.in_units('cm').d
+        RE_cgs = RE.in_units('cm').d  # also prevents passing by pointer (self.domain... etc. needs to be used again)
+
+        # Shift so centered at 0,0,0
+        Center_cgs = 0.5*(LE_cgs + RE_cgs)
+        LE_cgs = LE_cgs - Center_cgs
+        RE_cgs = RE_cgs - Center_cgs
 
         # calculate cell wall positions (may potentially exceed full domain if periodic)
         xs = [str(x) for x in np.linspace(LE_cgs[0], RE_cgs[0], dims[0]+1)]
@@ -195,13 +269,14 @@ class CarvingWriter:
 
         # write information about fine layers
         for layer in self.layers[1:]: # [1:] skips entry 0, the base layer
-            p = layer.parent
-            dds = (layer.RightEdge - layer.LeftEdge) / (layer.ActiveDimensions)
+            p = layer.parent # parent id
+            dds = (layer.RightEdge - layer.LeftEdge) / (layer.ActiveDimensions) # cell size
             if p == 0: # parent is the base layer,
                 # have to incorporate periodicity, if used
                 # LE = base layer, needs to be adjusted
                 # layer.Left is the level=1 layer, no adjustment needed
-                ind = (layer.LeftEdge - LE) / (2.0*dds) + 1
+                # Beginning index
+                ind = (layer.LeftEdge - LE) / (2.0*dds) + 1 # LE wasn't shifted so 0,0,0 is center. OK!
                 if(layer.is_periodic):
                     for shifted_grid in self.domainPatches:
                         ledge_shift, redge_shift = shifted_grid
@@ -217,17 +292,22 @@ class CarvingWriter:
                 for potential_parent in self.layers:
                     if potential_parent.id == p:
                         parent_LE = potential_parent.LeftEdge
-                ind = (layer.LeftEdge - parent_LE) / (2.0*dds) + 1 # periodic or not, they both should be correct; difference is good here
-            ix = int(ind[0]+0.5)
+                ind = (layer.LeftEdge - parent_LE) / (2.0*dds) + 1 # #index in parent grid cells; periodic or not, they both should be correct; difference is good here
+            ix = int(ind[0]+0.5) # beginning index in terms of parent grid cells (b/c of the 2*dds)
             iy = int(ind[1]+0.5)
             iz = int(ind[2]+0.5)
-            nx, ny, nz = layer.ActiveDimensions / 2
+            nx, ny, nz = layer.ActiveDimensions / 2 # number of cells (/2 to measure in dimensions of parent cell size)
+            #print(nx,ny,nz)
             s = '{}    {}    {}    {}    {}    {}    {} \n'
             #s = s.format(p, ix, iy, iz, nx, ny, nz)
-            s = s.format(p, ix, iy, iz, int(nx), int(ny), int(nz))
+            #s = s.format(p, ix, iy, iz, int(np.rint(nx.d)), int(np.rint(ny.d)), int(np.rint(nz.d))) # RAD complains if anything is not int()
+            s = s.format(p, ix, iy, iz, int(nx), int(ny), int(nz) ) # RAD complains if anything is not int()
+            #s = s.format(p, ix, iy, iz, int(round(nx)), int(round(ny)), int(round(nz)) ) # RAD complains if anything is not int()
+            #CellCount = CellCount + 2*(round(nx)*round(ny)*round(nz))
             grid_file.write(s)
 
         grid_file.close()
+        #print("Cell count post AMR : " + str(CellCount))
 
     def _write_layer_data_to_file(self, fhandle, field, level, LE, dim):
         # coverting grids take into account periodicity, input original values for LE/RE
@@ -276,5 +356,48 @@ class CarvingWriter:
                 N = layer.ActiveDimensions
 
             self._write_layer_data_to_file(fhandle, field, lev, LE, N)
+
+        fhandle.close()
+
+    def write_dust_file(self, field, filename):
+        '''
+        This method writes out fields in the format radmc3d needs to compute
+        dust emission.
+
+        Parameters
+        ----------
+
+        field : string or list of 3 strings
+            If a string, the name of the field to be written out. If a list,
+            three fields that will be written to the file as a vector quantity.
+        filename : string
+            The name of the file to write the data to. The filenames radmc3d
+            expects for its various modes of operation are described in the
+            radmc3d manual.
+
+        '''
+        fhandle = open(filename, 'w')
+
+        # write header
+        fhandle.write('1 \n')
+        fhandle.write(str(self.cell_count) + ' \n')
+        fhandle.write('1 \n')
+
+        # now write layers:
+        # accesses actual state data in _write_layer_data_to_file
+        print("Writing dust with self.cell_count = " + str(self.cell_count))
+        CountUp = 0
+        for layer in self.layers:
+            lev = layer.level
+            if lev == 0:
+                LE = self.domain_left_edge #passing to covering grid, periodicity incorporated on its own
+                N = self.domain_dimensions
+            else:
+                LE = layer.LeftEdge        # passing to covering grid, pass original non-adjusted values
+                N = layer.ActiveDimensions
+
+            self._write_layer_data_to_file(fhandle, field, lev, LE, N)
+            CountUp = CountUp + np.product(N)
+        print("Wrote dust with " + str(CountUp) + " (should match self.cell_count)")
 
         fhandle.close()

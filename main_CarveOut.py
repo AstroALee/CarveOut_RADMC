@@ -17,19 +17,36 @@ from globals_CarveOut import *
 import inputs_CarveOut as inputs
 from carver_CarveOut import CarvingWriter
 
+# Definition of the XYZ species field. Uses info from inputs
+def _DustMassDensity(field, data):
+    return inputs.dustgas_ratio*data[inputs.density_field]
+yt.add_field(("gas", "dust_density"), function=_DustMassDensity, units="g*cm**-3")
 
 # Definition of the gas temperature. Uses info from inputs
 def _GasTemperature(field, data):
     ethbyden = data[inputs.ienergy_field]/data[inputs.density_field]
     gmmfac = (inputs.gas_gamma - 1.0)*yt.YTQuantity(inputs.gas_mmw*Csts.mp, 'g')/(yt.units.kb)
-    return (gmmfac*ethbyden)
+    Temp = gmmfac*ethbyden
+    Temp[Temp > inputs.max_temp] = yt.YTQuantity(inputs.max_temp, 'K')
+    return (Temp)
 yt.add_field(("gas", "gas_temperature"), function=_GasTemperature, units="K")
+
+# Definition of the dust temperature. Assumes same as gas for now
+def _DustTemperature(field, data):
+    return data["gas_temperature"]
+yt.add_field(("gas", "dust_temperature"), function=_DustTemperature, units="K")
 
 # Definition of the XYZ species field. Uses info from inputs
 def _NumberDensityXYZ(field, data):
-    aw = yt.YTQuantity(inputs.aw_XYZ*Csts.mp, 'g')
+    aw = yt.YTQuantity(inputs.gas_mmw*Csts.mp, 'g')
     return (inputs.x_XYZ/aw)*data[inputs.density_field]
 yt.add_field(("gas", "number_density_XYZ"), function=_NumberDensityXYZ, units="cm**-3")
+
+# Definition of the H_2 species field. Uses info from inputs
+def _NumberDensityH2(field, data):
+    aw = yt.YTQuantity(inputs.gas_mmw*Csts.mp, 'g')
+    return (inputs.x_H2/aw)*data[inputs.density_field]
+yt.add_field(("gas", "number_density_H2"), function=_NumberDensityH2, units="cm**-3")
 
 
 def BreakIntoPatches(domainPatches,fulldomain, mincellsize):
@@ -139,8 +156,7 @@ if not any([inputs.is_periodic==y for y in [0,1]]):
     assert False, "is_periodic needs to be 0 or 1. C'mon!"
 if not any([inputs.setup_type==y for y in [0,1]]):
     assert False, "setup_type needs to be 0 or 1. C'mon!"
-assert inputs.aw_XYZ>0, "Atomic weight needs to be positive!"
-assert (inputs.x_XYZ>0 and inputs.x_XYZ<1.0), "Mass fraction outside physical limits!"
+assert (inputs.x_XYZ>0 and inputs.x_XYZ<1.0), "Number fraction outside physical limits!"
 
 # Loads file into YT
 ds = yt.load(inputs.O2gas_fname)
@@ -205,19 +221,31 @@ writer = CarvingWriter(ds, boxLeft, boxRight, domainPatches, fullDomain_L, fullD
 
 
 # Write the amr grid file (fast)
-Messages.Print("Writing amr grid file")
+Messages.Print("1/7: Writing amr grid file (fast!)")
 writer.write_amr_grid()
 
-# Write the number density file for species or dust (slow)
-Messages.Print("Writing number density file")
+# Write the number density file for species (slow)
+Messages.Print("2/7: Writing number density file (slow.)")
 writer.write_line_file(("gas", "number_density_XYZ"), inputs.out_nfname)
 
+# Write the number density file for species (slow)
+Messages.Print("3/7: Writing number density file for H_2 (slow.)")
+writer.write_line_file(("gas", "number_density_H2"), inputs.out_h2fname)
+
+# Write the dust density file for dust (slow)
+Messages.Print("4/7: Writing dust density file (slow.)")
+writer.write_dust_file(("gas", "dust_density"), inputs.out_ddfname)
+
 # Write the temperature file for species or dust (slow)
-Messages.Print("Writing temperature file")
+Messages.Print("5/7: Writing temperature file (slower..)")
 writer.write_line_file(("gas", "gas_temperature"), inputs.out_tfname)
 
+# Assuming dust temperature is same as gas for now...
+Messages.Print("6/7: Writing dust temperature file (slower..)")
+writer.write_dust_file(("gas", "dust_temperature"), inputs.out_dtfname)
+
 # Write the gas velocity file (slow x 3)
-Messages.Print("Writing velocity file")
+Messages.Print("7/7: Writing velocity file (slowest...)")
 velocity_fields = [inputs.velocityX_field,inputs.velocityY_field,inputs.velocityZ_field]
 writer.write_line_file(velocity_fields, inputs.out_vfname)
 
