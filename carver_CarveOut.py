@@ -134,16 +134,31 @@ class CarvingWriter:
         # cell size
         print("Original number of cells: " + str(self.cell_count))
         for layer in self.layers[1:]: # 0th entry is base layer
-            # Find the parent of the current layer
-            parent_layer = None
-            for potential_parent in self.layers:
-                if potential_parent.id == layer.parent:
-                    parent_layer = potential_parent
-                    break # if this list is huge, this could save a few tick tocks
             # base and current level cell size
             base_cell = (self.domain_right_edge - self.domain_left_edge)/np.array(self.domain_dimensions)
             layer_cell = base_cell/pow(2.0,layer.level) # by construction of this loop, layer.level >= 1
             oldCellCount = np.product(layer.ActiveDimensions) # if we change the box, we have to change the total cell count
+
+            # Find the parent of the current layer
+            parent_layer = None
+            if(layer.is_periodic and layer.level==1):
+                # periodic shift
+                for shifted_grid in self.domainPatches:
+                    ledge_shift, redge_shift = shifted_grid
+                    LE = np.maximum(yt.YTArray(ledge_shift,'cm'),  layer.LeftEdge)
+                    RE = np.minimum(yt.YTArray(redge_shift,'cm'), layer.RightEdge)
+                    if np.any(RE > LE):
+                        LE = yt.YTArray(ledge_shift,'cm')
+                        RE = yt.YTArray(redge_shift,'cm')
+                        N = (RE-LE)/base_cell
+                        parent_layer = RadMC3DLayer(0, None,  # the 'layer' here is one of the disjoint patches
+                                        0, LE, RE, N, self.allow_periodic, [])
+                        break # ASSUMPTION: it can overlap with only one of the broken up boxes
+            else:
+                for potential_parent in self.layers:
+                    if potential_parent.id == layer.parent:
+                        parent_layer = potential_parent
+                        break # if this list is huge, this could save a few tick tocks
             # if the layer was truncated, the layer's LE and RE will be exactly the same as the parent layer
             if( np.all(layer.LeftEdge > parent_layer.LeftEdge) and np.all(layer.RightEdge < parent_layer.RightEdge) ):
                 # layer is fully inside and cell sizes will be correct

@@ -9,12 +9,13 @@
         Aaron T. Lee, aaron.t.lee@utexas.edu
         Spring 2018
 
-   Written/Tested with Python 3.6.4, YT 3.4.1
+   Written/Tested with Python 3.6.4, YT 3.4.1, recent Orion2 revision
 """
 
 # Relevant Python modules
 import numpy as np
 import sys
+import inputs_CarveOut as inputs
 
 # CGS constants
 class Csts:
@@ -42,8 +43,9 @@ class UnitConv:
 
 # Chatty Cathy
 class Messages:
-    def Print(s):
-        print(s)
+    def Print(v,s):
+        if(inputs.verbosity <= v):
+            print(s)
     # welcome
     def Welcome():
         print("\nWelcome to the carve out routine.")

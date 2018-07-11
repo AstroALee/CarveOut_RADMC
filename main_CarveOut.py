@@ -2,7 +2,7 @@
    main_CarveOut.py
 
    Purpose:
-        Driving function for RadMC carve routines. Call this file when you want
+        Driver for RadMC carve routines. Call this file when you want
         to run the code. Should not ever need to edit this file.
 
    Author:
@@ -17,7 +17,7 @@ from globals_CarveOut import *
 import inputs_CarveOut as inputs
 from carver_CarveOut import CarvingWriter
 
-# Definition of the XYZ species field. Uses info from inputs
+# Definition of the dust field. Uses dust to gas ration from inputs file
 def _DustMassDensity(field, data):
     return inputs.dustgas_ratio*data[inputs.density_field]
 yt.add_field(("gas", "dust_density"), function=_DustMassDensity, units="g*cm**-3")
@@ -27,7 +27,7 @@ def _GasTemperature(field, data):
     ethbyden = data[inputs.ienergy_field]/data[inputs.density_field]
     gmmfac = (inputs.gas_gamma - 1.0)*yt.YTQuantity(inputs.gas_mmw*Csts.mp, 'g')/(yt.units.kb)
     Temp = gmmfac*ethbyden
-    Temp[Temp > inputs.max_temp] = yt.YTQuantity(inputs.max_temp, 'K')
+    Temp[Temp > inputs.max_temp] = yt.YTQuantity(inputs.max_temp, 'K') # overwrites spurious high T
     return (Temp)
 yt.add_field(("gas", "gas_temperature"), function=_GasTemperature, units="K")
 
@@ -49,6 +49,9 @@ def _NumberDensityH2(field, data):
 yt.add_field(("gas", "number_density_H2"), function=_NumberDensityH2, units="cm**-3")
 
 
+# Routine that, when periodic boxes are allowed, breaks a domain that extends
+# beyond the edges of the physical domain into a discrete set of patches equivalent
+# to if periodic boundary conditions were employed.
 def BreakIntoPatches(domainPatches,fulldomain, mincellsize):
     fdL = fulldomain[0]
     fdR = fulldomain[1]
@@ -65,7 +68,7 @@ def BreakIntoPatches(domainPatches,fulldomain, mincellsize):
     print(leftAdjustment)
 
     while(True):
-        print("Beginning of while loop, current domainPatches:")
+        Messages.Print(2,"Beginning of while loop, current domainPatches:")
         print(domainPatches)
         # look at current set of domainPatches to see if any exceed fulldomain
         # If all are within fulldomain, we're done. List comprehension was giving
@@ -76,7 +79,7 @@ def BreakIntoPatches(domainPatches,fulldomain, mincellsize):
                 done = 0
                 break # no need to keep looping through...
         if(done):
-            print("All patches inside domain")
+            Messages.Print(2,"All patches inside domain")
             break
         else:
             # now we need to find the first example of where this is not true
@@ -115,7 +118,7 @@ def BreakIntoPatches(domainPatches,fulldomain, mincellsize):
         for box in domainPatches:
             for i in range(len(box[0])):
                 if(box[1][i] - box[0][i] < mincellsize): # zero volume on grid (using mincell instead to avoid roundoff?)
-                    print("Removing zero-volume patch")
+                    Messages.Print(1,"Removing zero-volume patch")
                     domainPatches.pop(domainPatches.index(box))
                     break # this box is gone, next box please
         idxToDelete = []
@@ -131,11 +134,11 @@ def BreakIntoPatches(domainPatches,fulldomain, mincellsize):
         idxToDelete.sort()
         idxToDelete.reverse()
         for i in idxToDelete:
-            print("Removing duplicate patch")
+            Messages.Print(1,"Removing duplicate patch")
             domainPatches.pop(i) # the reverse makes the changing size of the list not affect things
         # end of while loop
-    print("End of breaking up!")
-    print(domainPatches)
+    Messages.Print(0,"Domain broken into patches [ [LE,RE]_i ]:")
+    Messages.Print(0,domainPatches)
 
 
 # -=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=--=-=-
@@ -146,22 +149,20 @@ def BreakIntoPatches(domainPatches,fulldomain, mincellsize):
 Messages.Welcome()
 
 # Gets box lengths ready (may overwrite the right-side ones)
-boxLeft  = inputs.box_L #[inputs.box_xL,inputs.box_yL,inputs.box_zL]
-boxRight = inputs.box_R #[inputs.box_xR,inputs.box_yR,inputs.box_zR]
+boxLeft  = np.array(inputs.box_L) #[inputs.box_xL,inputs.box_yL,inputs.box_zL]
+boxRight = np.array( len(boxLeft)*[0] )
 boxLeft =  [ Convert(x,inputs.box_units,'cm','cm') for x in boxLeft] # convert to CGS
 boxRight = [ Convert(x,inputs.box_units,'cm','cm') for x in boxRight] # convert to CGS
 
 # Checks on input values before we read in file
 if not any([inputs.is_periodic==y for y in [0,1]]):
     assert False, "is_periodic needs to be 0 or 1. C'mon!"
-if not any([inputs.setup_type==y for y in [0,1]]):
-    assert False, "setup_type needs to be 0 or 1. C'mon!"
 assert (inputs.x_XYZ>0 and inputs.x_XYZ<1.0), "Number fraction outside physical limits!"
 
 # Loads file into YT
 ds = yt.load(inputs.O2gas_fname)
 try:
-    Messages.Print("Loaded file " + str(ds))
+    print("Loaded file " + str(ds)) # using classic print() for try/except to work
 except NameError:
     assert False, "Unable to properly load file into YT!"
 
@@ -172,26 +173,16 @@ fullDomain_R = ds.domain_right_edge
 # Cell size on coarsest level (will assume factors of 2 refinement)
 dxArray = ds.index.dds_list[0]
 
-# If setup_type=0, we'll reset the right side of the box
-# else we'll use the box dimensions to set the cell dimensions
-if(inputs.is_periodic):
-    inputs.setup_type = 0
-
-if(inputs.setup_type==0):
-    for i in range(3):
-        boxRight[i] = boxLeft[i] + (inputs.Ncells[i])*dxArray[i]
-else:
-    for i in range(3):
-        if any([(y-x)<0 for y,x in zip(boxRight,boxLeft)]):
-            assert False, "Box physical dimensions are weird"
-        inputs.Ncells[i] = int(np.ceil((boxRight[i] - boxLeft[i])/dxArray[i]))
+# Using cell size, sets the right edge of the box
+boxRight = boxLeft + np.array(inputs.Ncells)*dxArray
 
 # Checks & Balances
+assert(inputs.verbosity>=0)
 assert(inputs.max_level <= ds.max_level)
 assert(all(np.array(inputs.Ncells) >= 2))
 if(inputs.is_periodic):
     if(any( np.array(boxRight)-np.array(boxLeft) >  np.array(fullDomain_R.d)-np.array(fullDomain_L.d))):
-        assert False, ("Carve out box is bigger than domain. Weird!")
+        assert False, ("Without periodic turned on: Carve out box is bigger than domain. Weird!")
 else:
     if(any(boxLeft < fullDomain_L.d)):
         print((boxLeft-fullDomain_L.d)/fullDomain_L.d )
@@ -203,9 +194,9 @@ else:
             assert False, ("Right side of desired carve out outside actual domain. " + str(boxRight) + " , " + str(fullDomain_R.d))
 
 
-Messages.Print("Carving between Left = " + str(boxLeft))
-Messages.Print("            to Right = " + str(boxRight))
-Messages.Print("           w/ Ncells = " + str(inputs.Ncells))
+Messages.Print(0,"Carving between Left = " + str(boxLeft))
+Messages.Print(0,"            to Right = " + str(boxRight))
+Messages.Print(0,"           w/ Ncells = " + str(inputs.Ncells))
 
 # If periodic allowed, breaks the domain region into a set of patches we'll use to check overlap
 domainPatches = [ [boxLeft,boxRight] ]
@@ -221,31 +212,31 @@ writer = CarvingWriter(ds, boxLeft, boxRight, domainPatches, fullDomain_L, fullD
 
 
 # Write the amr grid file (fast)
-Messages.Print("1/7: Writing amr grid file (fast!)")
+Messages.Print(0,"1/7: Writing amr grid file (fast!)")
 writer.write_amr_grid()
 
 # Write the number density file for species (slow)
-Messages.Print("2/7: Writing number density file (slow.)")
+Messages.Print(0,"2/7: Writing number density file (slow.)")
 writer.write_line_file(("gas", "number_density_XYZ"), inputs.out_nfname)
 
 # Write the number density file for species (slow)
-Messages.Print("3/7: Writing number density file for H_2 (slow.)")
+Messages.Print(0,"3/7: Writing number density file for H_2 (slow.)")
 writer.write_line_file(("gas", "number_density_H2"), inputs.out_h2fname)
 
 # Write the dust density file for dust (slow)
-Messages.Print("4/7: Writing dust density file (slow.)")
+Messages.Print(0,"4/7: Writing dust density file (slow.)")
 writer.write_dust_file(("gas", "dust_density"), inputs.out_ddfname)
 
 # Write the temperature file for species or dust (slow)
-Messages.Print("5/7: Writing temperature file (slower..)")
+Messages.Print(0,"5/7: Writing temperature file (slower..)")
 writer.write_line_file(("gas", "gas_temperature"), inputs.out_tfname)
 
 # Assuming dust temperature is same as gas for now...
-Messages.Print("6/7: Writing dust temperature file (slower..)")
+Messages.Print(0,"6/7: Writing dust temperature file (slower..)")
 writer.write_dust_file(("gas", "dust_temperature"), inputs.out_dtfname)
 
 # Write the gas velocity file (slow x 3)
-Messages.Print("7/7: Writing velocity file (slowest...)")
+Messages.Print(0,"7/7: Writing velocity file (slowest...)")
 velocity_fields = [inputs.velocityX_field,inputs.velocityY_field,inputs.velocityZ_field]
 writer.write_line_file(velocity_fields, inputs.out_vfname)
 
