@@ -13,20 +13,20 @@
 """
 
 # How verbose is the output to the screen? 0 = bare min is printed, 1 = some printed, >=2 = all
-verbosity = 1
+verbosity = 2
 
 # Allow for periodic boundary conditions (setting to 1 overwrites setup_type to 0)?
 is_periodic = 1
 
-# Number of cells on base level
-Ncells = [128,128,128]
+# Number of cells on base level of the carved out region
+Ncells = [32,32,32]
 
 # Units of the below box values ('pc','cm','AU','ly' accepted)
 # Follows Orion2 convenions where 0,0,0 is the center of the box.
 # Set box_L to the coordinates for the lower-left corner of the carve-out domain
 # The values should match the unit given by box_units
 box_units = 'pc'
-box_L = [1.61218e18, -1.10413e18, 2.44835e18]
+box_L = [0.51525, 0.472925, -0.0394418]
 
 # AMR levels included (0 = unigrid)
 max_level = 1
@@ -47,8 +47,8 @@ dustgas_ratio = 1.0e-2  # dust to gas mass ratio
 
 # HDF5 and sink particle file names to read in
 # (as of now, the sink file isn't actually used)
-O2gas_fname = "data.0736.3d.hdf5"
-O2sink_fname = "data.0736.3d.sink"
+O2gas_fname = "data.0840.3d.hdf5"
+O2sink_fname = "data.0840.3d.sink"
 
 # Output file names for use in RADMC3D
 out_afname = "amr_grid.inp"       # output file name for amr grid
@@ -67,4 +67,4 @@ velocityY_field = "velocity_y" # name of y-velocity field in YT
 velocityZ_field = "velocity_z" # name of z-velocity field in YT
 ienergy_field  = "energy-density" # name of internal energy field in YT
 
-# At this point, call python main_CarveOut.py and call it a day! 
+# At this point, call python main_CarveOut.py and call it a day!
