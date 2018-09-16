@@ -19,17 +19,17 @@ verbosity = 2
 is_periodic = 1
 
 # Number of cells on base level of the carved out region
-Ncells = [32,32,32]
+Ncells = [64,64,64]
 
 # Units of the below box values ('pc','cm','AU','ly' accepted)
 # Follows Orion2 convenions where 0,0,0 is the center of the box.
 # Set box_L to the coordinates for the lower-left corner of the carve-out domain
 # The values should match the unit given by box_units
 box_units = 'pc'
-box_L = [0.51525, 0.472925, -0.0394418]
+box_L = [0.45275, 0.410425, -0.101942]
 
 # AMR levels included (0 = unigrid)
-max_level = 1
+max_level = 3
 
 # Information about the species XYZ you want to analyze (e.g., CO, NH3)
 x_XYZ   = 1.0e-7 # number fraction of species XYZ
