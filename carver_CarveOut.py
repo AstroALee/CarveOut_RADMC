@@ -172,7 +172,7 @@ class CarvingWriter:
                         layer.LeftEdge[i] = max(layer.LeftEdge[i] , parent_layer.LeftEdge[i] )
                     # replaces only elements where layer.LE < parent_layer.LE
                 if( np.any(layer.RightEdge > parent_layer.RightEdge)):
-                    #print("RIGHT: I don't think this should ever happen...") # this actually will happen
+                    print("RIGHT: I don't think this should ever happen...") # this actually will happen
                     #print(layer.RightEdge , parent_layer.RightEdge)
                     # replaces only elements where layer.LE < parent_layer.LE
                     for i in range(len(layer.RightEdge)):
@@ -189,6 +189,9 @@ class CarvingWriter:
                 for i in range(len(newDim)):
                     if(newDim[i]%2): #   = 1 if odd
                         newDim[i] = newDim[i] - 1
+                        if(newDim[i]<2):
+                            print("New dimension in " + str(i) + " direction < 2 : " + str(newDim[i]))
+                            newDim[i] = 2 # this might f things up...
                         assert(newDim[i]>1) # not sure if newDim = 0 would cause issues # also, this assert doesn't seem to work?
                 layer.RightEdge = layer.LeftEdge + ( newDim * layer_cell )
                 layer.ActiveDimensions = np.array([int(x) for x in newDim])
@@ -219,6 +222,8 @@ class CarvingWriter:
         for parent in parents: # if potential parents were found, this is done, else skipped
             LE, RE = parent.get_overlap_with(grid)
             N = (RE - LE) / grid.dds
+            if(np.any(N<2)):
+                print("Skipping thin layer!  grid level = " + str(grid.Level))
             if(np.all(N>1)): # truncation and roundoff sometimes results in razor-thin layers
                 N = np.array([int(n + 0.5) for n in N])
                 new_layer = RadMC3DLayer(grid.Level, parent.id,
