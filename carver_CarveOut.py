@@ -85,7 +85,7 @@ class CarvingWriter:
         a_is_periodic = 0,1 whether we are allowing for periodic domains
 
     '''
-    def __init__(self, a_ds, a_boxLeft, a_boxRight, a_domainPatches, a_DomainLeft, a_DomainRight, a_boxDim, a_max_level, a_allow_periodic):
+    def __init__(self, a_ds, a_boxLeft, a_boxRight, a_domainPatches, a_DomainLeft, a_DomainRight, a_boxDim, a_max_level, a_allow_periodic, a_force_unigrid):
         self.max_level = a_max_level
         self.cell_count = 0
         self.layers = []
@@ -95,18 +95,34 @@ class CarvingWriter:
         self.fulldomain_left = a_DomainLeft # pulled from yt, already a YT array
         self.fulldomain_right = a_DomainRight # pulled from yt, already a YT array
         self.grid_filename = inputs.out_afname #'amr_grid.inp'
-        self.ds = a_ds
+        self.ds = a_ds # yt dataset
         self.allow_periodic = a_allow_periodic
+        self.force_unigrid = a_force_unigrid
         self.domainPatches = a_domainPatches # domain to carve out broken into patches
 
-        base_layer = RadMC3DLayer(0, None, 0,
+
+        if(self.force_unigrid):
+            #self.max_level = 0
+            newDim      = [(2**a_max_level)*x for x in a_boxDim]
+            self.domain_dimensions = newDim
+            base_layer = RadMC3DLayer(0, None, 0,
+                                      self.domain_left_edge,
+                                      self.domain_right_edge,
+                                      newDim,
+                                      self.allow_periodic, self.domainPatches)
+            self.cell_count += np.product(newDim) #np.product(a_ds.domain_dimensions)
+        else:
+            base_layer = RadMC3DLayer(0, None, 0,
                                   self.domain_left_edge,
                                   self.domain_right_edge,
                                   self.domain_dimensions,
                                   self.allow_periodic, self.domainPatches)
+            self.cell_count += np.product(a_boxDim) #np.product(a_ds.domain_dimensions)
+
+
 
         self.layers.append(base_layer)
-        self.cell_count += np.product(a_boxDim) #np.product(a_ds.domain_dimensions)
+
 
         # Sort the grids by level
         # This is a list of pointers. Changing values in sorted grid also changes
@@ -115,9 +131,12 @@ class CarvingWriter:
         sorted_grids = sorted(a_ds.index.grids, key=lambda x: x.Level)
 
         # Add relevant grids to a master list (ignoring levels above our max level)
-        for grid in sorted_grids:
-            if grid.Level <= self.max_level:
-                self._add_grid_to_layers(grid)
+        if(self.force_unigrid):
+            print("Forcing unigrid")
+        else:
+            for grid in sorted_grids:
+                if grid.Level <= self.max_level:
+                    self._add_grid_to_layers(grid)
 
         # Statistics on layers included
         layerCounts = (self.max_level+1)*[0]
@@ -238,7 +257,8 @@ class CarvingWriter:
         radmc3d will use.
 
         '''
-        dims = self.domain_dimensions
+        dims = self.domain_dimensions # if force_unigrid, this should have been overwritten to the right value
+
         LE = self.domain_left_edge # carved out region
         RE = self.domain_right_edge
 
@@ -262,7 +282,7 @@ class CarvingWriter:
         # writer file header
         grid_file = open(self.grid_filename, 'w')
         grid_file.write('1 \n')  # iformat is always 1
-        if self.max_level == 0:
+        if(self.max_level == 0 or self.force_unigrid==1):
             grid_file.write('0 \n')
         else:
             grid_file.write('10 \n')  # only layer-style files are supported
@@ -270,7 +290,7 @@ class CarvingWriter:
         grid_file.write('0 \n')
         grid_file.write('{}    {}    {} \n'.format(1, 1, 1))  # assume 3D
         grid_file.write('{}    {}    {} \n'.format(dims[0], dims[1], dims[2]))
-        if self.max_level != 0:
+        if(self.max_level != 0 and self.force_unigrid==0):
             s = str(self.max_level) + '    ' + str(len(self.layers)-1) + '\n'
             grid_file.write(s)
 
@@ -331,7 +351,12 @@ class CarvingWriter:
 
     def _write_layer_data_to_file(self, fhandle, field, level, LE, dim):
         # coverting grids take into account periodicity, input original values for LE/RE
-        cg = self.ds.covering_grid(level, LE, dim, num_ghost_zones=1)
+
+        lev = level
+        if(self.force_unigrid):
+            lev = self.max_level
+
+        cg = self.ds.covering_grid(lev, LE, dim, num_ghost_zones=1)
         if isinstance(field, list):
             data_x = cg[field[0]]
             data_y = cg[field[1]]

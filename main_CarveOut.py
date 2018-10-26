@@ -39,7 +39,14 @@ yt.add_field(("gas", "dust_temperature"), function=_DustTemperature, units="K")
 # Definition of the XYZ species field. Uses info from inputs
 def _NumberDensityXYZ(field, data):
     aw = yt.YTQuantity(inputs.gas_mmw*Csts.mp, 'g')
-    return (inputs.x_XYZ/aw)*data[inputs.density_field]
+    H2numDen = (inputs.x_H2/aw)*data[inputs.density_field]
+    XYZnumDen= (inputs.x_XYZ/aw)*data[inputs.density_field]
+    #print(H2numDen.min())
+    #print(H2numDen.max())
+    if(inputs.allow_freezeout):
+        XYZnumDen[H2numDen < inputs.freeze_minN] = yt.YTQuantity(0.0, "cm**-3")
+        XYZnumDen[H2numDen > inputs.freeze_maxN] = yt.YTQuantity(0.0, "cm**-3")
+    return XYZnumDen
 yt.add_field(("gas", "number_density_XYZ"), function=_NumberDensityXYZ, units="cm**-3")
 
 # Definition of the H_2 species field. Uses info from inputs
@@ -47,6 +54,16 @@ def _NumberDensityH2(field, data):
     aw = yt.YTQuantity(inputs.gas_mmw*Csts.mp, 'g')
     return (inputs.x_H2/aw)*data[inputs.density_field]
 yt.add_field(("gas", "number_density_H2"), function=_NumberDensityH2, units="cm**-3")
+
+# Definition of the microturbulence at each point. Uses info from inputs
+def _MicroTurb(field, data):
+    turb = data[inputs.velocityX_field]
+    turb[turb>=0] = yt.YTQuantity(inputs.microturbulence_speed, "cm/s")
+    turb[turb<=0] = yt.YTQuantity(inputs.microturbulence_speed, "cm/s")
+    #print(turb.min())
+    #print(turb.max())
+    return turb
+yt.add_field(("gas", "microturbulence_speed"), function=_MicroTurb, units="cm/s")
 
 
 # Routine that, when periodic boxes are allowed, breaks a domain that extends
@@ -157,7 +174,16 @@ boxRight = [ Convert(x,inputs.box_units,'cm','cm') for x in boxRight] # convert 
 # Checks on input values before we read in file
 if not any([inputs.is_periodic==y for y in [0,1]]):
     assert False, "is_periodic needs to be 0 or 1. C'mon!"
+if not any([inputs.is_unigrid==y for y in [0,1]]):
+    assert False, "is_unigrid needs to be 0 or 1. C'mon!"
+if not any([inputs.allow_freezeout==y for y in [0,1]]):
+    assert False, "allow_freezeout needs to be 0 or 1. C'mon!"
+if not any([inputs.has_microturb==y for y in [0,1]]):
+    assert False, "has_microturb needs to be 0 or 1. C'mon!"
 assert (inputs.x_XYZ>0 and inputs.x_XYZ<1.0), "Number fraction outside physical limits!"
+assert (inputs.freeze_minN >= 0), "Really....?"
+assert (inputs.freeze_maxN >= inputs.freeze_minN), "Really....?"
+
 
 # Loads file into YT
 ds = yt.load(inputs.O2gas_fname)
@@ -208,7 +234,7 @@ if(inputs.is_periodic):
 
 
 # Call the writer class constructor (super fast)
-writer = CarvingWriter(ds, boxLeft, boxRight, domainPatches, fullDomain_L, fullDomain_R, inputs.Ncells, inputs.max_level, inputs.is_periodic)
+writer = CarvingWriter(ds, boxLeft, boxRight, domainPatches, fullDomain_L, fullDomain_R, inputs.Ncells, inputs.max_level, inputs.is_periodic, inputs.is_unigrid)
 
 
 # Write the amr grid file (fast)
@@ -226,6 +252,10 @@ writer.write_line_file(("gas", "number_density_H2"), inputs.out_h2fname)
 # Write the dust density file for dust (slow)
 Messages.Print(0,"4/7: Writing dust density file (slow.)")
 writer.write_dust_file(("gas", "dust_density"), inputs.out_ddfname)
+
+if(inputs.has_microturb):
+    Messages.Print(0,"4.5/7: Writing microturbulence file (slow.)")
+    writer.write_line_file(("gas", "microturbulence_speed"), inputs.out_mtfname)
 
 # Write the temperature file for species or dust (slow)
 Messages.Print(0,"5/7: Writing temperature file (slower..)")

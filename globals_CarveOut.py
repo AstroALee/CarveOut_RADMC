@@ -44,7 +44,7 @@ class UnitConv:
 # Chatty Cathy
 class Messages:
     def Print(v,s):
-        if(inputs.verbosity <= v):
+        if(inputs.verbosity >= v):
             print(s)
     # welcome
     def Welcome():
