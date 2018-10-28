@@ -12,28 +12,31 @@
    Written/Tested with Python 3.6.4, YT 3.4.1
 """
 
-# How verbose is the output to the screen? 0 = bare min is printed, 1 = some printed, >=2 = all
+# How verbose is the output to the screen?
+#    0 = bare min is printed,
+#    1 = some printed, >=2 = all
 verbosity = 2
 
 # Allow for periodic boundary conditions (setting to 1 overwrites setup_type to 0)?
+#    In the future this will always be set to 1.
 is_periodic = 1
 
 # Number of cells on base level of the carved out region
-Ncells = [32,32,32]
-Ncells = [16,16,16]
+Ncells = [8,8,8]
 
 # Units of the below box values ('pc','cm','AU','ly' accepted)
 # Follows Orion2 convenions where 0,0,0 is the center of the box.
 # Set box_L to the coordinates for the lower-left corner of the carve-out domain
 # The values should match the unit given by box_units
 box_units = 'pc'
-box_L = [0.518976, 0.480555, 0.804028]
-box_L = [0.550226, 0.511805, 0.835278]
+box_L = [0.565851, 0.52743, 0.850903]
 
-# AMR levels included (0 = unigrid)
-max_level = 3
+# AMR levels included (0 = unigrid at base level from simulation output)
+max_level = 4
 
-# Output unigrid at max_level (0 = AMR structure is mapped, 1 = unigrid output at max_level)
+# Do you want output unigrid at max_level?
+#   0 = AMR structure is mapped if max_level > 0
+#   1 = unigrid output at max_level when max_level > 0
 is_unigrid = 1
 
 # Information about the species XYZ you want to analyze (e.g., CO, NH3)
@@ -57,8 +60,8 @@ gas_mmw   = 2.33    # 2.33 = contemp gas
 dustgas_ratio = 1.0e-2  # dust to gas mass ratio
 
 # Microturbulence included?
-has_microturb = 0 # =1, creates a microturbulence file that employs the MicroTurb function in main_CarveOut. Default is to set the 
-                  # microturbulence speed to the below constant everywhere.
+has_microturb = 0 # =1, creates a microturbulence file that employs the MicroTurb function in main_CarveOut. Default is to set the
+                  # microturbulence speed to the same constant everywhere.
 microturbulence_speed = 1e5 # cgs, please
 
 # HDF5 and sink particle file names to read in
