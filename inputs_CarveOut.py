@@ -19,25 +19,28 @@ verbosity = 2
 
 # Allow for periodic boundary conditions (setting to 1 overwrites setup_type to 0)?
 #    In the future this will always be set to 1.
-is_periodic = 1
+is_periodic = 0
 
 # Number of cells on base level of the carved out region
-Ncells = [8,8,8]
+Ncells = [32,32,32]
 
 # Units of the below box values ('pc','cm','AU','ly' accepted)
 # Follows Orion2 convenions where 0,0,0 is the center of the box.
 # Set box_L to the coordinates for the lower-left corner of the carve-out domain
 # The values should match the unit given by box_units
 box_units = 'pc'
-box_L = [0.565851, 0.52743, 0.850903]
+box_L = [0.518976, 0.480555, 0.804028]
 
 # AMR levels included (0 = unigrid at base level from simulation output)
-max_level = 4
+max_level = 2
 
 # Do you want output unigrid at max_level?
 #   0 = AMR structure is mapped if max_level > 0
 #   1 = unigrid output at max_level when max_level > 0
 is_unigrid = 1
+
+# force nested?
+force_nested = 0
 
 # Information about the species XYZ you want to analyze (e.g., CO, NH3)
 x_XYZ   = 1.0e-7 # number fraction of species XYZ

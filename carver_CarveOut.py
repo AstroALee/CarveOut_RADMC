@@ -16,7 +16,7 @@ import numpy as np
 import inputs_CarveOut as inputs
 import yt
 from yt.utilities.lib.write_array import write_3D_array, write_3D_vector_array
-
+#import math
 
 class RadMC3DLayer:
     '''
@@ -132,7 +132,10 @@ class CarvingWriter:
 
         # Add relevant grids to a master list (ignoring levels above our max level)
         if(self.force_unigrid):
-            print("Forcing unigrid")
+            print("Forcing unigrid") # This will skip adding additiona layers
+        elif(inputs.force_nested):
+            print("Sorting Layers so they're nested")
+            self._created_nested_layers(sorted_grids)
         else:
             for grid in sorted_grids:
                 if grid.Level <= self.max_level:
@@ -158,6 +161,9 @@ class CarvingWriter:
             layer_cell = base_cell/pow(2.0,layer.level) # by construction of this loop, layer.level >= 1
             oldCellCount = np.product(layer.ActiveDimensions) # if we change the box, we have to change the total cell count
 
+            if(self.layers.index(layer)==9):
+                print("Prefix = " + str(layer.LeftEdge) + " " + str(layer.RightEdge) + " " + str(layer.ActiveDimensions))
+                print(layer_cell)
             # Find the parent of the current layer
             parent_layer = None
             if(layer.is_periodic and layer.level==1):
@@ -207,13 +213,16 @@ class CarvingWriter:
                 # if newDim is odd, we throw away another cell to make it even
                 for i in range(len(newDim)):
                     if(newDim[i]%2): #   = 1 if odd
+                        #print(self.layers.index(layer))
                         newDim[i] = newDim[i] - 1
                         if(newDim[i]<2):
                             print("New dimension in " + str(i) + " direction < 2 : " + str(newDim[i]))
                             newDim[i] = 2 # this might f things up...
                         assert(newDim[i]>1) # not sure if newDim = 0 would cause issues # also, this assert doesn't seem to work?
-                layer.RightEdge = layer.LeftEdge + ( newDim * layer_cell )
+                layer.RightEdge = layer.LeftEdge + ( newDim * layer_cell ) # 'layer' here is a pointer, the ultimate list will update
                 layer.ActiveDimensions = np.array([int(x) for x in newDim])
+                if(self.layers.index(layer)==9):
+                    print("Postfix = " + str(layer.LeftEdge) + " "  + str(layer.RightEdge) + " " + str(layer.ActiveDimensions))
                 #print(layer.LeftEdge , parent_layer.LeftEdge, newDim)
                 for i in range(len(layer.ActiveDimensions)):
                     assert(layer.ActiveDimensions[i]>0)
@@ -224,7 +233,7 @@ class CarvingWriter:
         print("New number of cells: " + str(self.cell_count))
 
 
-
+        #print("Out of loop = " + str(self.layers[9].LeftEdge) + " " + str(self.layers[9].RightEdge) + " " + str(self.layers[9].ActiveDimensions))
 
         # Done with constructor
 
@@ -236,8 +245,51 @@ class CarvingWriter:
                     parents.append(potential_parent)
         return parents
 
+    def _created_nested_layers(self,sorted_grids):
+        # at this point you have only added the base layer (level = 0)
+        for cur_lev in range(1,self.max_level+1): # for each level, find the single rectangle that would cover all the cur_level data
+                                                  # each level then has exactly one entry in the layer list
+                                                  # there can only be one parent then for each higher level
+            # find the only possible parent
+            pIDX = -1
+            for parent in self.layers:
+                if(parent.level == cur_lev-1):
+                    pIDX = self.layers.index(parent)
+                    #LEparent = parent.LeftEdge  #yt.YTArray([1e100,1e100,1e100],'cm')
+                    #REparent = parent.RightEdge #yt.YTArray([-1e100,-1e100,-1e100],'cm')
+                    pID   = parent.id
+            dx = 0
+            LEmin = yt.YTArray([1e100,1e100,1e100],'cm')
+            REmax = yt.YTArray([-1e100,-1e100,-1e100],'cm')
+            for grid in sorted_grids:
+                if(grid.Level==cur_lev):
+                    LE, RE = self.layers[pIDX].get_overlap_with(grid)
+                    dx = grid.dds
+                    N = (RE-LE)/dx
+                    if(np.all(N>1)): # N > 0 means there is overlap
+                        LEmin = np.minimum(LEmin,LE) # numpy does it entry by entry
+                        REmax = np.maximum(REmax,RE)
+            # At this point LEmin and REmax is the largest volume for grids that
+            # also overlap with the parent. This is our layer
+            N = (REmax-LEmin)/dx
+            N = np.array([int(n + 0.5) for n in N])
+            print("Cells on level " + str(cur_lev) + ": N = " + str(N))
+            new_layer = RadMC3DLayer(cur_lev, pID,
+                                 len(self.layers),
+                                 LEmin, REmax, N, self.allow_periodic, [])
+            self.layers.append(new_layer)
+            self.cell_count += np.product(N)
+
+
+
+
+
+
+
+
+
     def _add_grid_to_layers(self, grid):
-        parents = self._get_parents(grid)
+        parents = self._get_parents(grid) # looks in the already added layers (which includes/may only be the base layer)
         for parent in parents: # if potential parents were found, this is done, else skipped
             LE, RE = parent.get_overlap_with(grid)
             N = (RE - LE) / grid.dds
@@ -323,6 +375,7 @@ class CarvingWriter:
                         LE = np.maximum(yt.YTArray(ledge_shift,'cm'),  layer.LeftEdge)
                         RE = np.minimum(yt.YTArray(redge_shift,'cm'), layer.RightEdge)
                         if np.any(RE > LE):
+                            print("HOW COULD THIS HAPPEN?!?!")
                             LE = yt.YTArray(ledge_shift,'cm')
                             ind = (layer.LeftEdge - LE) / (2.0*dds) + 1
                             #print(ind)
@@ -332,10 +385,15 @@ class CarvingWriter:
                 for potential_parent in self.layers:
                     if potential_parent.id == p:
                         parent_LE = potential_parent.LeftEdge
+                        break # might save a few tick tocks
                 ind = (layer.LeftEdge - parent_LE) / (2.0*dds) + 1 # #index in parent grid cells; periodic or not, they both should be correct; difference is good here
+            #print(str(np.array(ind)+0.5) + " " + str([int(x) for x in np.array(ind)+0.5]))
             ix = int(ind[0]+0.5) # beginning index in terms of parent grid cells (b/c of the 2*dds)
             iy = int(ind[1]+0.5)
             iz = int(ind[2]+0.5)
+            #ix = math.ceil(ind[0]) # beginning index in terms of parent grid cells (b/c of the 2*dds)
+            #iy = math.ceil(ind[1])
+            #iz = math.ceil(ind[2])
             nx, ny, nz = layer.ActiveDimensions / 2 # number of cells (/2 to measure in dimensions of parent cell size)
             #print(nx,ny,nz)
             s = '{}    {}    {}    {}    {}    {}    {} \n'
